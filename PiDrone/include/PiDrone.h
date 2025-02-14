@@ -17,14 +17,7 @@ public:
     ~PiDrone();
 
     // Methods
-    void takeoff();
-    void land();
-    void adjustAltitude(float newAltitude);
-    int checkBattery() const;
-    
-    // Getters
-    float getAltitude() const;
-    bool getStatus() const;
+    int getBatteryLevel() const;
 };
 
 #endif // PIDRONE_H
