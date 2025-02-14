@@ -1,3 +1,0 @@
-/home/pidrone/CPiDrone/PiDrone/build/CMakeFiles/rebuild_cache.dir
-/home/pidrone/CPiDrone/PiDrone/build/CMakeFiles/edit_cache.dir
-/home/pidrone/CPiDrone/PiDrone/build/CMakeFiles/my_program.dir

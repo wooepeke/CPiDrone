@@ -1,6 +1,12 @@
 cmake_minimum_required(VERSION 3.10)
-project(MyProject)
+project(PiDroneProject)
 
+# Specify C++ standard
 set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED True)
 
-add_executable(my_program src/main.cpp)
+# Add executable target
+add_executable(PiDrone
+    main.cpp
+    PiDrone.cpp
+)
