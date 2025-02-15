@@ -12,6 +12,7 @@ add_executable(PiDrone
     src/main.cpp
     src/PiDrone.cpp
     src/MPU6050.cpp
+    src/TCPServer.cpp
 )
 
 # Link necessary libraries

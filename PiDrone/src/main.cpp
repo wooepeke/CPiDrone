@@ -1,12 +1,16 @@
 #include <iostream>
 #include <chrono>  // Include for timing
 #include <unistd.h>  // For usleep
+#include <thread>
+
 #include "PiDrone.h"
 #include "MPU6050.h"
+#include "TCPServer.h"
 
 MPU6050 device(0x68);
 
 int main() {
+    PiDrone drone;
     float ax, ay, az, gr, gp, gy; // Variables to store the accel, gyro, and angle values
 
 	sleep(1); //Wait for the MPU6050 to stabilize
@@ -19,8 +23,16 @@ int main() {
     // Read the current yaw angle
     device.calc_yaw = false;
 
-    for (int i = 0; i < 1000; i++) {
-        // Start time measurement
+    TCPServer server(8080, drone);
+
+    std::string ip = server.getLocalIP();
+    std::cout << "Raspberry Pi Local IP: " << ip << std::endl;
+
+    std::thread serverThread([&server]() {
+        server.start();
+    });
+    
+    while (true) {
         auto start_time = std::chrono::high_resolution_clock::now();
 
         // // Get the current accelerometer values
@@ -34,6 +46,9 @@ int main() {
 		device.getAngle(0, &gr);
 		device.getAngle(1, &gp);
 		device.getAngle(2, &gy);
+
+        drone.setDroneAngles(gr, gp, gy);
+        
 		// std::cout << "Current angle around the roll axis: " << gr << "\n";
 		// std::cout << "Current angle around the pitch axis: " << gp << "\n";
 		// std::cout << "Current angle around the yaw axis: " << gy << "\n";
@@ -46,9 +61,9 @@ int main() {
         std::chrono::duration<double, std::milli> elapsed = end_time - start_time;
 
         // Print loop duration in milliseconds
-        std::cout << "Loop duration: " << elapsed.count() << " ms\n";
-    }
+        // std::cout << "Loop duration: " << elapsed.count() << " ms\n";
 
+    }
 
     return 0;
 }
