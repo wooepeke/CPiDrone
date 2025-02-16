@@ -15,13 +15,6 @@ struct MomentsOfInertia {
     float Izz;
 };
 
-// Overload the << operator for EulerAngles
-// Defines how to print the angles variable
-inline std::ostream& operator<<(std::ostream& os, const EulerAngles& angles) {
-    os << "Roll: " << angles.roll << ", Pitch: " << angles.pitch << ", Yaw: " << angles.yaw;
-    return os;
-}
-
 class PiDrone {
 private:
     int batteryLevel;                       // Battery percentage (0-100)
