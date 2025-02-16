@@ -47,7 +47,7 @@ int main() {
 		device.getAngle(1, &gp);
 		device.getAngle(2, &gy);
 
-        drone.setDroneAngles(gr, gp, gy);
+        drone.setDroneAngles(-gr, gp, gy);
         
 		// std::cout << "Current angle around the roll axis: " << gr << "\n";
 		// std::cout << "Current angle around the pitch axis: " << gp << "\n";
