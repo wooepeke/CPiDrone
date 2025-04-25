@@ -9,12 +9,8 @@
 #include "PiDrone.h"
 #include "MPU6050.h"
 #include "TCPServer.h"
-#include "DRV8833.h"
-#include <PCA9685.h>
-
 
 MPU6050 device(0x68);
-PiPCA9685::PCA9685 pca{};
 std::atomic<bool> running(true);  // Shared flag for stopping
 
 // Run this for mpu6050:
@@ -24,8 +20,6 @@ std::atomic<bool> running(true);  // Shared flag for stopping
 void shutdown(int signum) {
     std::cout << "\n[INFO] Received signal " << signum << " -> Shutting down...\n";
     
-    pca.set_all_pwm(0, 0);  // Turn off all LEDs/PWM
-
     std::cout << "[INFO] All PWM channels turned off. Exiting now.\n";
     running = false;
     exit(signum);
@@ -58,8 +52,6 @@ int main() {
 
 	sleep(1); //Wait for the MPU6050 to stabilize
 
-    pca.set_pwm_freq(1048.0);
-  
     int channel = 1;  // Change this to the correct LED channel  
 
     // Calculate the offsets
@@ -111,20 +103,6 @@ int main() {
     //     // std::cout << "Loop duration: " << elapsed.count() << " ms\n";
 
     // }
-
-    while (true) {
-        // Fade in
-        for (int dutyCycle = 0; dutyCycle <= 4095; dutyCycle += 10) {
-            pca.set_pwm(channel, 0, dutyCycle);
-            usleep(5000);  // Small delay for smooth fading (5ms)
-        }
-  
-        // Fade out
-        for (int dutyCycle = 4095; dutyCycle >= 0; dutyCycle -= 10) {
-          pca.set_pwm(channel, 0, dutyCycle);
-            usleep(5000);
-        }
-    }
 
     inputThread.join();  // Wait for the input thread to finish
     return 0;
