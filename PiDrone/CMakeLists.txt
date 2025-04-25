@@ -13,7 +13,10 @@ add_executable(PiDrone
     src/PiDrone.cpp
     src/MPU6050.cpp
     src/TCPServer.cpp
+    src/DRV8833.cpp
+    src/PCA9685.cpp
+    src/I2CPeripheral.cpp
 )
 
 # Link necessary libraries
-target_link_libraries(PiDrone PRIVATE i2c pthread)
+target_link_libraries(PiDrone PRIVATE i2c pthread pigpio fmt)
