@@ -11,10 +11,45 @@
 // This example will use I2C0 on GPIO8 (SDA) and GPIO9 (SCL) running at 400KHz.
 // Pins can be changed, see the GPIO function select table in the datasheet for information on GPIO assignments
 #define I2C_PORT i2c0
-#define I2C_SDA 8
-#define I2C_SCL 9
+#define I2C_SDA 4
+#define I2C_SCL 5
 
 #include "blink.pio.h"
+#include "pico/stdlib.h"
+#include "hardware/i2c.h"
+#include <stdio.h>
+
+// I2C defines
+#define I2C_PORT i2c0
+#define MPU6050_ADDR 0x68
+
+// MPU6050 register addresses
+#define REG_PWR_MGMT_1 0x6B
+#define REG_ACCEL_XOUT_H 0x3B
+#define REG_GYRO_CONFIG 0x1B
+#define REG_ACCEL_CONFIG 0x1C
+#define REG_SMPLRT_DIV 0x19
+#define WHO_AM_I_REG 0x75
+
+// Sensitivity scale factors for different ranges
+#define ACCEL_SCALE_FACTOR_2G 16384.0  // for ±2g
+#define ACCEL_SCALE_FACTOR_4G 8192.0   // for ±4g
+#define ACCEL_SCALE_FACTOR_8G 4096.0   // for ±8g
+#define ACCEL_SCALE_FACTOR_16G 2048.0  // for ±16g
+
+#define GYRO_SCALE_FACTOR_250DPS 131.0    // for ±250 degrees per second
+#define GYRO_SCALE_FACTOR_500DPS 65.5     // for ±500 degrees per second
+#define GYRO_SCALE_FACTOR_1000DPS 32.8    // for ±1000 degrees per second
+#define GYRO_SCALE_FACTOR_2000DPS 16.4    // for ±2000 degrees per second
+
+// Select the desired scale factor
+#define ACCEL_SCALE_FACTOR ACCEL_SCALE_FACTOR_4G  // Change this to the desired accelerometer range
+#define GYRO_SCALE_FACTOR GYRO_SCALE_FACTOR_250DPS // Change this to the desired gyroscope range
+
+// Corresponding configuration values
+#define ACCEL_CONFIG_VALUE 0x08  // for ±4g
+#define GYRO_CONFIG_VALUE 0x00  // for ±250 degrees per second
+#define SAMPLE_RATE_DIV 1  // Sample rate = 1kHz / (1 + 1) = 500Hz
 
 void blink_pin_forever(PIO pio, uint sm, uint offset, uint pin, uint freq) {
     blink_program_init(pio, sm, offset, pin);
@@ -33,13 +68,71 @@ int64_t alarm_callback(alarm_id_t id, void *user_data) {
     return 0;
 }
 
+// MPU functions
+void mpu6050_reset() {
+    uint8_t reset[] = {REG_PWR_MGMT_1, 0x80};
+    i2c_write_blocking(I2C_PORT, MPU6050_ADDR, reset, 2, false);
+    sleep_ms(200);
+    uint8_t wake[] = {REG_PWR_MGMT_1, 0x00};
+    i2c_write_blocking(I2C_PORT, MPU6050_ADDR, wake, 2, false);
+    sleep_ms(200);
+}
 
+void mpu6050_configure() {
+    // Set accelerometer range
+    uint8_t accel_config[] = {REG_ACCEL_CONFIG, ACCEL_CONFIG_VALUE};
+    i2c_write_blocking(I2C_PORT, MPU6050_ADDR, accel_config, 2, false);
 
+    // Set gyroscope range
+    uint8_t gyro_config[] = {REG_GYRO_CONFIG, GYRO_CONFIG_VALUE};
+    i2c_write_blocking(I2C_PORT, MPU6050_ADDR, gyro_config, 2, false);
+
+    // Set sample rate
+    uint8_t sample_rate[] = {REG_SMPLRT_DIV, SAMPLE_RATE_DIV};
+    i2c_write_blocking(I2C_PORT, MPU6050_ADDR, sample_rate, 2, false);
+}
+
+void mpu6050_read_raw(int16_t accel[3], int16_t gyro[3], int16_t *temp) {
+    uint8_t buffer[14];
+    uint8_t reg = REG_ACCEL_XOUT_H;
+    i2c_write_blocking(I2C_PORT, MPU6050_ADDR, &reg, 1, true);
+    i2c_read_blocking(I2C_PORT, MPU6050_ADDR, buffer, 14, false);
+
+    accel[0] = (buffer[0] << 8) | buffer[1];
+    accel[1] = (buffer[2] << 8) | buffer[3];
+    accel[2] = (buffer[4] << 8) | buffer[5];
+    *temp = (buffer[6] << 8) | buffer[7];
+    gyro[0] = (buffer[8] << 8) | buffer[9];
+    gyro[1] = (buffer[10] << 8) | buffer[11];
+    gyro[2] = (buffer[12] << 8) | buffer[13];
+
+    // Debug print to check raw values
+    printf("Raw Accel X: %d, Y: %d, Z: %d\n", accel[0], accel[1], accel[2]);
+    printf("Raw Gyro X: %d, Y: %d, Z: %d\n", gyro[0], gyro[1], gyro[2]);
+    printf("Raw Temp: %d\n", *temp);
+}
+
+// Use for debuggin
+void i2c_scan() {
+    for (int addr = 1; addr < 128; addr++) {
+        uint8_t result = i2c_write_blocking(I2C_PORT, addr, NULL, 0, false);
+        if (result == 0) {
+            printf("Device found at address 0x%02X\n", addr);
+        }
+    }
+}
 
 
 int main()
 {
     stdio_init_all();
+
+    // Wait for USB Serial to be connected
+    while (!stdio_usb_connected()) {
+        sleep_ms(100);
+    }
+
+    printf("USB Serial connected!\n");
 
     // I2C Initialisation. Using it at 400Khz.
     i2c_init(I2C_PORT, 400*1000);
@@ -48,7 +141,10 @@ int main()
     gpio_set_function(I2C_SCL, GPIO_FUNC_I2C);
     gpio_pull_up(I2C_SDA);
     gpio_pull_up(I2C_SCL);
-    // For more examples of I2C use see https://github.com/raspberrypi/pico-examples/tree/master/i2c
+
+    // Scanning for I2C
+    printf("Scanning I2C bus...\n");
+    i2c_scan();
 
     // PIO Blinking example
     PIO pio = pio0;
@@ -60,40 +156,46 @@ int main()
     #else
     blink_pin_forever(pio, 0, offset, 6, 3);
     #endif
-    // For more pio examples see https://github.com/raspberrypi/pico-examples/tree/master/pio
 
-    // Interpolator example code
-    interp_config cfg = interp_default_config();
-    // Now use the various interpolator library functions for your use case
-    // e.g. interp_config_clamp(&cfg, true);
-    //      interp_config_shift(&cfg, 2);
-    // Then set the config 
-    interp_set_config(interp0, 0, &cfg);
-    // For examples of interpolator use see https://github.com/raspberrypi/pico-examples/tree/master/interp
+    uint8_t who_am_i = 0;
+    uint8_t reg = WHO_AM_I_REG;
+    i2c_write_blocking(I2C_PORT, MPU6050_ADDR, &reg, 1, true);
+    i2c_read_blocking(I2C_PORT, MPU6050_ADDR, &who_am_i, 1, false);
+    printf("MPU6050 WHO_AM_I: 0x%02X\n", who_am_i);
 
-    // Timer example code - This example fires off the callback after 2000ms
-    add_alarm_in_ms(2000, alarm_callback, NULL, false);
-    // For more examples of timer use see https://github.com/raspberrypi/pico-examples/tree/master/timer
-
-    // Watchdog example code
-    if (watchdog_caused_reboot()) {
-        printf("Rebooted by Watchdog!\n");
-        // Whatever action you may take if a watchdog caused a reboot
+    if (who_am_i != 0x68) {
+        printf("MPU6050 not found!\n");
+        while (true);
     }
-    
-    // Enable the watchdog, requiring the watchdog to be updated every 100ms or the chip will reboot
-    // second arg is pause on debug which means the watchdog will pause when stepping through code
-    watchdog_enable(100, 1);
-    
-    // You need to call this function at least more often than the 100ms in the enable call to prevent a reboot
-    watchdog_update();
 
-    printf("System Clock Frequency is %d Hz\n", clock_get_hz(clk_sys));
-    printf("USB Clock Frequency is %d Hz\n", clock_get_hz(clk_usb));
-    // For more examples of clocks use see https://github.com/raspberrypi/pico-examples/tree/master/clocks
+    // After finding the MPU, make sure to configure
+    mpu6050_reset();
+    mpu6050_configure();
+
+
+    int16_t accel[3], gyro[3], temp;
 
     while (true) {
-        printf("Hello, world!\n");
-        sleep_ms(1000);
+        mpu6050_read_raw(accel, gyro, &temp);
+
+        // Convert raw accelerometer values to g
+        float accel_g[3];
+        accel_g[0] = accel[0] / ACCEL_SCALE_FACTOR;
+        accel_g[1] = accel[1] / ACCEL_SCALE_FACTOR;
+        accel_g[2] = accel[2] / ACCEL_SCALE_FACTOR;
+
+        // Convert raw gyroscope values to degrees per second
+        float gyro_dps[3];
+        gyro_dps[0] = gyro[0] / GYRO_SCALE_FACTOR;
+        gyro_dps[1] = gyro[1] / GYRO_SCALE_FACTOR;
+        gyro_dps[2] = gyro[2] / GYRO_SCALE_FACTOR;
+
+        // Print converted values
+        printf("aX = %.2f g | aY = %.2f g | aZ = %.2f g | gX = %.2f dps | gY = %.2f dps | gZ = %.2f dps | temp = %.2f°C\n",
+            accel_g[0], accel_g[1], accel_g[2], gyro_dps[0], gyro_dps[1], gyro_dps[2], temp / 340.00 + 36.53);
+
+        sleep_ms(500);
     }
+
+    return 0;
 }

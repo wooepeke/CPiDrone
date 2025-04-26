@@ -45,7 +45,7 @@ pico_generate_pio_header(FlightController ${CMAKE_CURRENT_LIST_DIR}/blink.pio)
 
 # Modify the below lines to enable/disable output over UART/USB
 pico_enable_stdio_uart(FlightController 0)
-pico_enable_stdio_usb(FlightController 0)
+pico_enable_stdio_usb(FlightController 1)
 
 # Add the standard library to the build
 target_link_libraries(FlightController
