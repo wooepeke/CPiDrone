@@ -71,38 +71,38 @@ int main() {
     //     server.start();
     // });
     
-    // while (true) {
-    //     auto start_time = std::chrono::high_resolution_clock::now();
+    while (true) {
+        auto start_time = std::chrono::high_resolution_clock::now();
 
-    //     // // Get the current accelerometer values
-    //     // device.getAccel(&ax, &ay, &az);
-    //     // std::cout << "Accelerometer Readings: X: " << ax << ", Y: " << ay << ", Z: " << az << "\n";
+        // // Get the current accelerometer values
+        // device.getAccel(&ax, &ay, &az);
+        // std::cout << "Accelerometer Readings: X: " << ax << ", Y: " << ay << ", Z: " << az << "\n";
 
-    //     // // Get the current gyroscope values
-    //     // device.getGyro(&gr, &gp, &gy);
-    //     // std::cout << "Gyroscope Readings: X: " << gr << ", Y: " << gp << ", Z: " << gy << "\n";
+        // // Get the current gyroscope values
+        // device.getGyro(&gr, &gp, &gy);
+        // std::cout << "Gyroscope Readings: X: " << gr << ", Y: " << gp << ", Z: " << gy << "\n";
 
-	// 	device.getAngle(0, &gr);
-	// 	device.getAngle(1, &gp);
-	// 	device.getAngle(2, &gy);
+		device.getAngle(0, &gr);
+		device.getAngle(1, &gp);
+		device.getAngle(2, &gy);
 
-    //     drone.setDroneAngles(-gr, gp, gy);
+        drone.setDroneAngles(-gr, gp, gy);
         
-	// 	// std::cout << "Current angle around the roll axis: " << gr << "\n";
-	// 	// std::cout << "Current angle around the pitch axis: " << gp << "\n";
-	// 	// std::cout << "Current angle around the yaw axis: " << gy << "\n";
+		// std::cout << "Current angle around the roll axis: " << gr << "\n";
+		// std::cout << "Current angle around the pitch axis: " << gp << "\n";
+		// std::cout << "Current angle around the yaw axis: " << gy << "\n";
 
-    //     usleep(1000); //0.25sec
+        usleep(1000); //0.25sec
 
-    //     // End time measurement
-    //     auto end_time = std::chrono::high_resolution_clock::now();
-    //     // usleep(500); // 5 milli seconds delay
-    //     std::chrono::duration<double, std::milli> elapsed = end_time - start_time;
+        // End time measurement
+        auto end_time = std::chrono::high_resolution_clock::now();
+        // usleep(500); // 5 milli seconds delay
+        std::chrono::duration<double, std::milli> elapsed = end_time - start_time;
 
-    //     // Print loop duration in milliseconds
-    //     // std::cout << "Loop duration: " << elapsed.count() << " ms\n";
+        // Print loop duration in milliseconds
+        // std::cout << "Loop duration: " << elapsed.count() << " ms\n";
 
-    // }
+    }
 
     inputThread.join();  // Wait for the input thread to finish
     return 0;

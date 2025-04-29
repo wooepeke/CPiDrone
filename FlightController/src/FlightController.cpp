@@ -9,7 +9,9 @@
 #include "blink.pio.h"
 #include "pico/stdlib.h"
 #include <stdio.h>
+#include <chrono>  // Include for timing
 
+#include "DroneModel.h"
 #include "MPU6050.h"
 
 // I2C defines
@@ -18,6 +20,10 @@
 #define I2C_PORT i2c0
 #define I2C_SDA 4
 #define I2C_SCL 5
+
+// Define LED blink frequencies for different states
+#define CALIBRATION_BLINK_FREQ 3  // slow blinking for calibration
+#define RUNNING_BLINK_FREQ 1  // slow blinking for running
 
 // Use for debugging
 void i2c_scan() {
@@ -29,15 +35,21 @@ void i2c_scan() {
     }
 }
 
-void blink_pin_forever(PIO pio, uint sm, uint offset, uint pin, uint freq) {
+// Function to start blinking the LED at a specified frequency
+void start_led_blinking(PIO pio, uint sm, uint offset, uint pin, uint freq) {
     blink_program_init(pio, sm, offset, pin);
     pio_sm_set_enabled(pio, sm, true);
-
-    printf("Blinking pin %d at %d Hz\n", pin, freq);
-
-    // PIO counter program takes 3 more cycles in total than we pass as
-    // input (wait for n + 1; mov; jmp)
+    
+    // Set the frequency
     pio->txf[sm] = (125000000 / (2 * freq)) - 3;
+    
+    printf("Started blinking pin %d at %d Hz\n", pin, freq);
+}
+
+// Function to stop the LED blinking
+void stop_led_blinking(PIO pio, uint sm) {
+    pio_sm_set_enabled(pio, sm, false);
+    printf("Stopped LED blinking\n");
 }
 
 int64_t alarm_callback(alarm_id_t id, void *user_data) {
@@ -68,16 +80,9 @@ int main()
     printf("Scanning I2C bus...\n");
     i2c_scan();
 
-    // PIO Blinking example
-    PIO pio = pio0;
-    uint offset = pio_add_program(pio, &blink_program);
-    printf("Loaded program at %d\n", offset);
-    
-    #ifdef PICO_DEFAULT_LED_PIN
-    blink_pin_forever(pio, 0, offset, PICO_DEFAULT_LED_PIN, 3);
-    #else
-    blink_pin_forever(pio, 0, offset, 6, 3);
-    #endif
+    const uint LED_PIN = PICO_DEFAULT_LED_PIN;
+    gpio_init(LED_PIN);
+    gpio_set_dir(LED_PIN, GPIO_OUT);
 
     uint8_t who_am_i = 0;
     uint8_t reg = WHO_AM_I_REG;
@@ -96,13 +101,62 @@ int main()
     // After finding the MPU, make sure to configure
     mpu.mpu6050_reset();
     mpu.mpu6050_configure();
+    
+    // Enable yaw calculation if desired
+    mpu.enableYawCalculation(true);
+    
+    // Set up PIO for LED blinking
+    PIO pio = pio0;
+    uint offset = pio_add_program(pio, &blink_program);
+    printf("Loaded program at %d\n", offset);
+    
+    // Start slow blinking to indicate calibration is in progress
+    printf("Starting calibration mode LED indicator...\n");
+    start_led_blinking(pio, 0, offset, LED_PIN, CALIBRATION_BLINK_FREQ);
+    
+    // Calculate offsets (make sure the device is still)
+    printf("Calibrating MPU6050... Keep the device still\n");
+    mpu.calculateOffsets();
+    printf("Calibration complete\n");
+    
+    // Stop the calibration blinking
+    stop_led_blinking(pio, 0);
+    
+    // Start blinking the led indicating that the drone is ready
+    start_led_blinking(pio, 0, offset, LED_PIN, RUNNING_BLINK_FREQ);
+
+    // Initialize drone model
+    DroneModel drone;
+
+    // Initialize PWM pins for the four motors
+    // These are the GPIO pin numbers, not physical pin numbers
+    // Choose GPIO pins that support PWM on the Pico
+    uint motor1_pin = 0;  // GPIO 0 (physical pin 1)
+    uint motor2_pin = 2;  // GPIO 2 (physical pin 4)
+    uint motor3_pin = 4;  // GPIO 4 (physical pin 6)
+    uint motor4_pin = 6;  // GPIO 6 (physical pin 9)
+
+    drone.initPWMPins(motor1_pin, motor2_pin, motor3_pin, motor4_pin);
 
     int16_t accel[3], gyro[3], temp;
+    float roll, pitch, yaw;
 
     while (true) {
-        mpu.mpu6050_read_raw(accel, gyro, &temp);
+        // Start timer to measure loop duration
+        auto start_time = std::chrono::high_resolution_clock::now();
 
-        // Get the accelerations and gyro readings
+        // Read raw values
+        mpu.mpu6050_read_raw(accel, gyro, &temp);
+        
+        // Calculate Euler angles
+        mpu.calculateAngles();
+        
+        // Get the calculated angles
+        roll = mpu.getRoll();
+        pitch = mpu.getPitch();
+        yaw = mpu.getYaw();
+        
+        // Get the accel and gyro readings
         const int16_t* accel_data = mpu.getAccel();
         const int16_t* gyro_data = mpu.getGyro();
 
@@ -118,12 +172,52 @@ int main()
         gyro_dps[1] = gyro_data[1] / GYRO_SCALE_FACTOR;
         gyro_dps[2] = gyro_data[2] / GYRO_SCALE_FACTOR;
         
-        // Print converted values
-        printf("aX = %.2f g | aY = %.2f g | aZ = %.2f g | gX = %.2f dps | gY = %.2f dps | gZ = %.2f dps | temp = %.2f°C\n",
-            accel_g[0], accel_g[1], accel_g[2], gyro_dps[0], gyro_dps[1], gyro_dps[2], temp / 340.00 + 36.53);
+        // // Print raw values
+        // printf("Raw - aX = %.2f g | aY = %.2f g | aZ = %.2f g | gX = %.2f dps | gY = %.2f dps | gZ = %.2f dps\n",
+        //     accel_g[0], accel_g[1], accel_g[2], gyro_dps[0], gyro_dps[1], gyro_dps[2]);
+            
+        // // Print filtered angles
+        // printf("Angles - Roll = %.2f° | Pitch = %.2f° | Yaw = %.2f° | Temp = %.2f°C\n", 
+        //     roll, pitch, yaw, temp / 340.00 + 36.53);
+        
+        gpio_put(LED_PIN, 0);
 
-        sleep_ms(500);
+        // End time measurement
+        auto end_time = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double, std::milli> elapsed = end_time - start_time;
+
+        // Print loop duration in milliseconds
+        // printf("Loop duration: %.2f ms\n", elapsed.count());
     }
 
     return 0;
 }
+
+
+
+// EXAMPLE
+// // Optional: Set a custom PWM frequency (default is 25kHz)
+// // drone.setPWMFrequency(20000); // 20kHz
+
+// // Main control loop
+// while (true) {
+//     // Example: Gradually increase all motor speeds
+//     for (float speed = 0.0; speed <= 1.0; speed += 0.1) {
+//         printf("Setting all motors to speed: %.1f\n", speed);
+//         drone.setAllMotorSpeeds(speed, speed, speed, speed);
+//         sleep_ms(500);
+//     }
+    
+//     // Example: Run motors at different speeds
+//     printf("Setting motors to different speeds\n");
+//     drone.setMotorSpeed(0, 0.5);  // 50% power
+//     drone.setMotorSpeed(1, 0.6);  // 60% power
+//     drone.setMotorSpeed(2, 0.7);  // 70% power
+//     drone.setMotorSpeed(3, 0.8);  // 80% power
+//     sleep_ms(2000);
+    
+//     // Stop all motors
+//     printf("Stopping all motors\n");
+//     drone.stopAllMotors();
+//     sleep_ms(2000);
+// }

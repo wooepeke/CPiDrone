@@ -38,6 +38,7 @@ pico_sdk_init()
 add_executable(FlightController 
     src/FlightController.cpp 
     src/MPU6050.cpp
+    src/DroneModel.cpp
 )
 
 pico_set_program_name(FlightController "FlightController")
@@ -68,6 +69,7 @@ target_link_libraries(FlightController
         hardware_timer
         hardware_watchdog
         hardware_clocks
+        hardware_pwm
         )
 
 pico_add_extra_outputs(FlightController)
